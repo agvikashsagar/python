@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Viewer</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Load data from server
+            $.getJSON('/data', function(data) {
+                var table = $('#excel_table').DataTable({
+                    data: JSON.parse(data),
+                    columns: [
+                        { data: 'Sr' },
+                        { data: 'Symbol' },
+                        { data: 'CompanyName' },
+                        { data: 'Market (Rs)' },
+                        { data: 'Industry' },
+                        { data: 'Sector' },
+                        { data: 'symbol' }
+                    ],
+                    // Add additional options for DataTables
+                    paging: true,
+                    searching: true,
+                    ordering: true,
+                    info: true
+                });
+
+                // Add individual search inputs for each column
+                $('#excel_table thead th').each(function (index) {
+                    var title = $(this).text();
+                    $(this).html('<input type="text" placeholder="Search ' + title + '" id="col_' + index + '" />');
+                });
+
+                // Apply column level search
+                table.columns().every(function (index) {
+                    var that = this;
+                    $('#col_' + index).on('keyup change clear', function () {
+                        if (that.search() !== this.value) {
+                            that
+                                .search(this.value)
+                                .draw();
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Excel Viewer</h1>
+    <table id="excel_table" class="display">
+        <thead>
+            <tr>
+                <th>Sr</th>
+                <th>Symbol</th>
+                <th>CompanyName</th>
+                <th>Market (Rs)</th>
+                <th>Industry</th>
+                <th>Sector</th>
+                <th>Symbol</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</body>
+</html>
