@@ -1,0 +1,72 @@
+filter {
+    # Grok for specific messages (request and response)
+    grok {
+      pattern_definitions => {
+        "CUSTOMTIMESTAMP" => "%{MONTHDAY} %{MONTH} %{YEAR} %{TIME}"
+      }
+      match => {
+        "message" => [
+          # Request message pattern
+          "%{CUSTOMTIMESTAMP:timestamp} %{LOGLEVEL:log_level} \\[%{DATA:thread}\\] %{JAVACLASS:class} - logResponse:  REQUEST  method = \\[%{WORD:method}\\] path = \\[%{DATA:path}\\] body = \\[%{GREEDYDATA:body}\\]",
+  
+          # Response message pattern
+          "%{CUSTOMTIMESTAMP:timestamp} %{LOGLEVEL:log_level} \\[%{DATA:thread}\\] %{JAVACLASS:class} - logResponse:  RESPONSE  method = \\[%{WORD:method}\\] path = \\[%{DATA:path}\\] body = \\[%{GREEDYDATA:body}\\]"
+        ]
+      }
+    }
+  
+    # Fallback Grok pattern for other messages
+    if "_grokparsefailure" in [tags] {
+      grok {
+        match => {
+          "message" => "%{CUSTOMTIMESTAMP:timestamp} %{GREEDYDATA:remaining_message}"
+        }
+      }
+    }
+  
+    # Parse the extracted timestamp and set as event timestamp
+    date {
+      match => ["timestamp", "dd MMM yyyy HH:mm:ss.SSS"]
+      target => "@timestamp"
+      remove_field => ["timestamp"]
+    }
+  
+    # JSON parsing for request/response bodies
+    json {
+      source => "body"
+      target => "parsed_body"
+      skip_on_invalid_json => true
+    }
+  
+    # Aggregate request/response logic (from previous configuration)
+    if "REQUEST" in [message] {
+      aggregate {
+        task_id => "%{TradeId}"
+        code => "
+          map['requestId'] = event.get('requestId')
+          map['request_time'] = event.get('timestamp')
+          map['method'] = event.get('method')
+          map['path'] = event.get('path')
+          map['TradeId'] = event.get('TradeId')
+        "
+        map_action => "create"
+        timeout => 10
+      }
+    } else if "RESPONSE" in [message] {
+      aggregate {
+        task_id => "%{TradeId}"
+        code => "
+          map['response_time'] = event.get('timestamp')
+          map['response_status'] = event.get('log_level')
+        "
+        map_action => "update"
+        end_of_task => true
+      }
+    }
+  
+    # Drop individual request/response logs
+    if "REQUEST" in [message] or "RESPONSE" in [message] {
+      drop { }
+    }
+  }
+  
